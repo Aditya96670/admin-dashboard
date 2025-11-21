@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
+import { getProducts } from "../services/admin";
 import {
   Plus,
   Edit2,
@@ -13,62 +14,54 @@ import {
   Save,
 } from "lucide-react";
 
-// CATEGORY DATA
+// --- 1. UPDATED CATEGORY STRUCTURE (Matches your Navbar Image) ---
 const categories = {
-  Shirts: [
-    "Casual Shirts",
-    "Formal Shirts",
-    "Printed Shirts",
-    "Plain/Solid Shirts",
-    "Denim Shirts",
-    "Linen Shirts",
-  ],
-  "T-Shirts": [
-    "Half Sleeve",
-    "Full Sleeve",
-    "Polo T-Shirts",
-    "Oversized T-Shirts",
-    "Graphic/Printed",
-    "Plain/Solid",
-  ],
-  Jeans: [
-    "Slim Fit",
-    "Regular Fit",
-    "Skinny Fit",
-    "Baggy/Loose Fit",
-    "Ripped Distressed",
-  ],
-  "Trousers / Pants": [
-    "Chinos",
-    "Formal Trousers",
-    "Casual Pants",
-    "Joggers",
-    "Cargo Pants",
-  ],
-  "Ethnic Wear": ["Kurta", "Kurta Set", "Sherwani", "Nehru Jacket"],
-  "Activewear / Sportswear": [
-    "Track Pants",
-    "Sports Shorts",
-    "Active T-Shirts",
-    "Gym Wear",
-  ],
-  "Winter Wear": ["Hoodies", "Sweatshirts", "Jackets", "Sweaters", "Coats"],
-  "Innerwear & Lounge": [
-    "Boxers",
-    "Briefs",
-    "Vests",
-    "Pyjama Sets",
-    "Nightwear",
-  ],
-  Shorts: ["Casual Shorts", "Sports Shorts", "Denim Shorts"],
-  Footwear: ["Casual Shoes", "Sports Shoes", "Sandals & Floaters", "Sneakers"],
+  Topwear: {
+    "T-shirts": [
+      "Plain T-shirts",
+      "Printed T-shirts",
+      "Regular Fit T-shirts",
+      "Oversized T-shirts",
+      "Polo T-shirts",
+      "Plus Size T-shirts",
+      "Full Sleeve T-shirts",
+    ],
+    Shirts: [
+      "Plain Shirts",
+      "Oxford Shirts",
+      "Flannel Shirts",
+      "Satin Shirts",
+      "Festive Shirts",
+      "Cotton Shirts",
+      "Shackets",
+    ],
+    Polos: [], // No 3rd level
+    "Shop For Women": ["Topwear", "Bottomwear"],
+  },
+  Bottomwear: {
+    // These are L2 items that don't have L3 sub-types in your image, so mapped to empty arrays
+    "Cargo Joggers": [],
+    "Cargo Pants": [],
+    Trousers: [],
+    "Japanese Pants": [],
+    "Gurkha Pants": [],
+    "Korean Pants": [],
+    Pyjamas: [],
+    Jeans: [],
+    Shorts: [],
+    Boxers: [],
+  },
+  Combos: { General: [] },
+  "New Arrivals": { General: [] },
+  Winterwear: { General: [] },
 };
 
-// DEFAULT FORM DATA (reset ke liye)
+// --- 2. UPDATED DEFAULT STATE (Added specificType) ---
 const defaultFormState = {
   title: "",
-  mainCategory: "Shirts",
+  mainCategory: "",
   subCategory: "",
+  specificType: "", // New field for the 3rd level (e.g. "Oversized T-shirt")
   price: { original: "", discounted: "", offPercent: "" },
   sizes: [{ size: "S", stock: "" }],
   rating: "",
@@ -101,31 +94,61 @@ const Preview = () => {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [products, setProducts] = useState([]);
-
   const [formData, setFormData] = useState(defaultFormState);
 
-  // null = naya product, number = edit index
+  // Derived state for dropdown options
+  const [subCatOptions, setSubCatOptions] = useState([]);
+  const [typeOptions, setTypeOptions] = useState([]);
+
+  useEffect(() => {
+    if (activeTab === "products") {
+      const token = localStorage.getItem("adminToken");
+      getProducts(token).then((data) => {
+        if (Array.isArray(data)) {
+          setProducts(data);
+        }
+      });
+    }
+  }, [activeTab]);
+
   const [editingIndex, setEditingIndex] = useState(null);
 
-  // INPUT HANDLERS
+  // --- 3. UPDATED INPUT HANDLERS (Cascading Logic) ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name === "mainCategory") {
-      setFormData((prev) => ({
-        ...prev,
-        mainCategory: value,
-        subCategory: "",
-      }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleMainCatChange = (e) => {
+    const value = e.target.value;
+    const subs = categories[value] ? Object.keys(categories[value]) : [];
+
+    setFormData((prev) => ({
+      ...prev,
+      mainCategory: value,
+      subCategory: "", // Reset child
+      specificType: "", // Reset grandchild
+    }));
+    setSubCatOptions(subs);
+    setTypeOptions([]);
+  };
+
+  const handleSubCatChange = (e) => {
+    const value = e.target.value;
+    // Get the array of types based on Main + Sub selection
+    const types = categories[formData.mainCategory]?.[value] || [];
+
+    setFormData((prev) => ({
+      ...prev,
+      subCategory: value,
+      specificType: "", // Reset grandchild
+    }));
+    setTypeOptions(types);
   };
 
   const handlePriceChange = (field, value) => {
     setFormData((prev) => {
       const newPrice = { ...prev.price, [field]: value };
-
-      // Agar original & discounted dono diye ho to offPercent auto calculate
       const original = parseFloat(newPrice.original);
       const discounted = parseFloat(newPrice.discounted);
 
@@ -139,11 +162,7 @@ const Preview = () => {
         const off = Math.round(((original - discounted) / original) * 100);
         newPrice.offPercent = off.toString();
       }
-
-      return {
-        ...prev,
-        price: newPrice,
-      };
+      return { ...prev, price: newPrice };
     });
   };
 
@@ -167,7 +186,6 @@ const Preview = () => {
       sizes: prev.sizes.filter((_, i) => i !== index),
     }));
 
-  // IMAGE HANDLERS
   const handleImageUpload = (field, file) => {
     if (!file) return;
     const r = new FileReader();
@@ -195,38 +213,39 @@ const Preview = () => {
     r.readAsDataURL(file);
   };
 
-  // VALIDATION
   const validateForm = () => {
     if (!formData.title.trim()) {
       alert("Product title required");
       return false;
     }
     if (!formData.mainCategory || !formData.subCategory) {
-      alert("Category & sub-category required");
+      alert("Category required");
       return false;
     }
+    // If specific types exist for this subcat, force user to pick one
+    if (typeOptions.length > 0 && !formData.specificType) {
+      alert("Please select a specific type");
+      return false;
+    }
+
     if (!formData.color.trim()) {
       alert("Color is required");
       return false;
     }
     const original = parseFloat(formData.price.original);
     if (isNaN(original) || original <= 0) {
-      alert("Original price is required and must be > 0");
+      alert("Original price > 0 required");
       return false;
     }
     if (!formData.images.preview) {
-      alert("Preview image is required");
+      alert("Preview image required");
       return false;
     }
     const hasSizeStock = formData.sizes.some(
       (s) => s.stock && parseInt(s.stock) > 0
     );
     if (!hasSizeStock) {
-      alert("At least one size must have stock > 0");
-      return false;
-    }
-    if (formData.description.trim().length < 10) {
-      alert("Description should be at least 10 characters");
+      alert("At least one size must have stock");
       return false;
     }
     return true;
@@ -234,35 +253,46 @@ const Preview = () => {
 
   const handleSubmit = () => {
     if (!validateForm()) return;
-
     if (editingIndex !== null) {
-      // Update existing product
       setProducts((prev) =>
         prev.map((p, i) => (i === editingIndex ? formData : p))
       );
-      alert("Product updated successfully!");
+      alert("Product updated!");
     } else {
-      // Add new product
       setProducts((prev) => [...prev, formData]);
-      alert("Product added successfully!");
+      alert("Product added!");
     }
-
-    // Reset state
     setFormData(defaultFormState);
+    setSubCatOptions([]);
+    setTypeOptions([]);
     setEditingIndex(null);
     setActiveTab("products");
   };
 
   const handleEditProduct = (index) => {
-    setFormData(products[index]);
+    const prod = products[index];
+    setFormData(prod);
+
+    // Re-populate options for the dropdowns based on saved data
+    const subs = prod.mainCategory
+      ? Object.keys(categories[prod.mainCategory])
+      : [];
+    const types =
+      prod.mainCategory && prod.subCategory
+        ? categories[prod.mainCategory][prod.subCategory]
+        : [];
+
+    setSubCatOptions(subs);
+    setTypeOptions(types);
+
     setEditingIndex(index);
     setActiveTab("addProduct");
   };
 
   const handleDeleteProduct = (index) => {
-    const confirmDelete = window.confirm("Delete this product?");
-    if (!confirmDelete) return;
-    setProducts((prev) => prev.filter((_, i) => i !== index));
+    if (window.confirm("Delete this product?")) {
+      setProducts((prev) => prev.filter((_, i) => i !== index));
+    }
   };
 
   const filteredProducts = products.filter((p) =>
@@ -293,14 +323,12 @@ const Preview = () => {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
       <aside
         className={`${
           sidebarOpen ? "w-64" : "w-0"
         } bg-gray-900 text-white transition-all duration-300 overflow-hidden`}
       >
         <h2 className="p-6 text-xl font-bold tracking-wide">BEYOUNG ADMIN</h2>
-
         <nav className="space-y-1">
           {["dashboard", "products", "addProduct", "orders"].map((tab) => (
             <button
@@ -309,6 +337,8 @@ const Preview = () => {
                 setActiveTab(tab);
                 if (tab === "addProduct" && editingIndex === null) {
                   setFormData(defaultFormState);
+                  setSubCatOptions([]);
+                  setTypeOptions([]);
                 }
               }}
               className={`w-full text-left px-6 py-3 hover:bg-gray-800 flex items-center gap-2 ${
@@ -326,9 +356,7 @@ const Preview = () => {
         </nav>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {/* Header */}
         <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
           <button onClick={() => setSidebarOpen(!sidebarOpen)}>
             {sidebarOpen ? <X /> : <Menu />}
@@ -336,7 +364,6 @@ const Preview = () => {
           <p className="font-medium">Admin User</p>
         </header>
 
-        {/* Dashboard */}
         {activeTab === "dashboard" && (
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((s, i) => (
@@ -356,7 +383,6 @@ const Preview = () => {
           </div>
         )}
 
-        {/* Products */}
         {activeTab === "products" && (
           <div className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -373,7 +399,6 @@ const Preview = () => {
               </div>
             </div>
 
-            {/* List */}
             <div className="bg-white p-4 rounded shadow">
               {filteredProducts.length === 0 ? (
                 <p className="text-gray-500 text-center py-6">
@@ -387,7 +412,6 @@ const Preview = () => {
                       className="border rounded-lg p-4 flex gap-4 items-start justify-between hover:shadow-sm transition"
                     >
                       <div className="flex gap-4">
-                        {/* Image */}
                         <div className="w-16 h-16 bg-gray-100 rounded overflow-hidden flex items-center justify-center border">
                           {p.images.preview ? (
                             <img
@@ -401,12 +425,17 @@ const Preview = () => {
                             </span>
                           )}
                         </div>
-
-                        {/* Info */}
                         <div>
                           <p className="font-semibold">{p.title}</p>
                           <p className="text-xs text-gray-500">
+                            {/* Display all 3 levels of category */}
                             {p.mainCategory} ➝ {p.subCategory}
+                            {p.specificType && (
+                              <span className="text-gray-700 font-medium">
+                                {" "}
+                                ➝ {p.specificType}
+                              </span>
+                            )}
                           </p>
                           <p className="text-xs text-gray-500 mt-1">
                             Color:{" "}
@@ -429,14 +458,7 @@ const Preview = () => {
                           </p>
                         </div>
                       </div>
-
-                      {/* Actions */}
                       <div className="flex flex-col gap-2 items-end">
-                        {editingIndex === i && (
-                          <span className="text-[10px] text-blue-600 border border-blue-200 px-2 py-1 rounded-full">
-                            Editing
-                          </span>
-                        )}
                         <button
                           className="flex items-center gap-1 text-sm text-blue-600"
                           onClick={() => handleEditProduct(i)}
@@ -458,7 +480,6 @@ const Preview = () => {
           </div>
         )}
 
-        {/* Add New Product */}
         {activeTab === "addProduct" && (
           <div className="p-6 max-w-5xl mx-auto bg-white rounded shadow mb-10">
             <div className="flex items-center justify-between mb-6">
@@ -473,7 +494,7 @@ const Preview = () => {
               )}
             </div>
 
-            {/* Basic Info */}
+            {/* --- 4. UPDATED FORM UI (3 Dropdowns) --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <input
                 className="border p-2 rounded"
@@ -483,37 +504,73 @@ const Preview = () => {
                 onChange={handleInputChange}
               />
 
+              {/* Dropdown 1: Main Category */}
               <select
                 className="border p-2 rounded"
                 name="mainCategory"
                 value={formData.mainCategory}
-                onChange={handleInputChange}
+                onChange={handleMainCatChange}
               >
+                <option value="">Select Main Category *</option>
                 {Object.keys(categories).map((c) => (
                   <option key={c}>{c}</option>
                 ))}
               </select>
 
+              {/* Dropdown 2: Sub Category */}
               <select
-                className="border p-2 rounded"
+                className={`border p-2 rounded ${
+                  !formData.mainCategory ? "bg-gray-100 cursor-not-allowed" : ""
+                }`}
                 name="subCategory"
                 value={formData.subCategory}
-                onChange={handleInputChange}
+                onChange={handleSubCatChange}
+                disabled={!formData.mainCategory}
               >
                 <option value="">Select Sub Category *</option>
-                {categories[formData.mainCategory].map((sub) => (
+                {subCatOptions.map((sub) => (
                   <option key={sub}>{sub}</option>
                 ))}
               </select>
 
-              <input
-                className="border p-2 rounded"
-                name="color"
-                placeholder="Color (required)"
-                value={formData.color}
-                onChange={handleInputChange}
-              />
+              {/* Dropdown 3: Specific Type (Only shows if options exist) */}
+              {typeOptions.length > 0 ? (
+                <select
+                  className="border p-2 rounded"
+                  name="specificType"
+                  value={formData.specificType}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Select Specific Type *</option>
+                  {typeOptions.map((t) => (
+                    <option key={t}>{t}</option>
+                  ))}
+                </select>
+              ) : (
+                // If no types, we show a disabled placeholder or just hide it.
+                // Here I'm using the Color input space if type is hidden, or just showing color below.
+                <input
+                  className="border p-2 rounded"
+                  name="color"
+                  placeholder="Color (required)"
+                  value={formData.color}
+                  onChange={handleInputChange}
+                />
+              )}
+
+              {/* If Type options exist, Color gets pushed to next line, otherwise it was shown above. 
+                  To keep layout grid clean, we render Color here only if Type options were shown. */}
+              {typeOptions.length > 0 && (
+                <input
+                  className="border p-2 rounded"
+                  name="color"
+                  placeholder="Color (required)"
+                  value={formData.color}
+                  onChange={handleInputChange}
+                />
+              )}
             </div>
+            {/* ------------------------------------------- */}
 
             <textarea
               className="border p-2 rounded w-full mb-6"
@@ -524,7 +581,6 @@ const Preview = () => {
               onChange={handleInputChange}
             />
 
-            {/* Pricing */}
             <h2 className="font-semibold mb-2">Pricing</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <input
@@ -552,7 +608,6 @@ const Preview = () => {
               />
             </div>
 
-            {/* Sizes */}
             <h2 className="font-semibold mb-3">Sizes & Stock</h2>
             {formData.sizes.map((s, i) => (
               <div key={i} className="flex flex-wrap gap-4 mb-3 items-center">
@@ -565,7 +620,6 @@ const Preview = () => {
                     <option key={sz}>{sz}</option>
                   ))}
                 </select>
-
                 <input
                   type="number"
                   className="border p-2 rounded"
@@ -573,7 +627,6 @@ const Preview = () => {
                   value={s.stock}
                   onChange={(e) => handleSizeChange(i, "stock", e.target.value)}
                 />
-
                 {formData.sizes.length > 1 && (
                   <button
                     type="button"
@@ -585,7 +638,6 @@ const Preview = () => {
                 )}
               </div>
             ))}
-
             <button
               type="button"
               onClick={addSize}
@@ -594,15 +646,11 @@ const Preview = () => {
               <Plus size={14} /> Add Size
             </button>
 
-            {/* PRODUCT IMAGES */}
             <div className="border-b pb-8 mb-8">
               <h2 className="text-2xl font-semibold mb-6 text-gray-700">
                 Product Images
               </h2>
-
-              {/* Preview + Hover */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Preview Image */}
                 <div className="bg-gray-100 rounded-xl p-5 shadow-sm border">
                   <h3 className="text-sm font-semibold mb-3">
                     Preview Image *
@@ -619,9 +667,8 @@ const Preview = () => {
                         No Image
                       </div>
                     )}
-
                     <label className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer text-sm">
-                      Upload
+                      Upload{" "}
                       <input
                         type="file"
                         accept="image/*"
@@ -633,8 +680,6 @@ const Preview = () => {
                     </label>
                   </div>
                 </div>
-
-                {/* Hover Image */}
                 <div className="bg-gray-100 rounded-xl p-5 shadow-sm border">
                   <h3 className="text-sm font-semibold mb-3">Hover Image</h3>
                   <div className="w-full flex flex-col items-center">
@@ -649,9 +694,8 @@ const Preview = () => {
                         No Image
                       </div>
                     )}
-
                     <label className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer text-sm">
-                      Upload
+                      Upload{" "}
                       <input
                         type="file"
                         accept="image/*"
@@ -665,12 +709,10 @@ const Preview = () => {
                 </div>
               </div>
 
-              {/* Gallery */}
               <div className="mt-8">
                 <h3 className="font-semibold mb-4 text-gray-700">
                   Gallery Images
                 </h3>
-
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-5">
                   {formData.images.gallery.map((img, i) => (
                     <div
@@ -678,7 +720,6 @@ const Preview = () => {
                       className="p-4 bg-gray-100 rounded-lg border flex flex-col items-center"
                     >
                       <p className="text-xs mb-2 capitalize">{img.view} View</p>
-
                       {img.file ? (
                         <img
                           src={img.file}
@@ -690,9 +731,8 @@ const Preview = () => {
                           No Image
                         </div>
                       )}
-
                       <label className="bg-blue-500 text-white px-2 py-1 rounded-md text-xs cursor-pointer">
-                        Upload
+                        Upload{" "}
                         <input
                           type="file"
                           accept="image/*"
@@ -708,16 +748,14 @@ const Preview = () => {
               </div>
             </div>
 
-            {/* SAVE PRODUCT */}
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSubmit}
                 className="bg-green-600 text-white px-6 py-3 rounded font-semibold flex items-center gap-2"
               >
-                <Save size={20} />
+                <Save size={20} />{" "}
                 {editingIndex !== null ? "Update Product" : "Save Product"}
               </button>
-
               {editingIndex !== null && (
                 <button
                   type="button"
@@ -734,7 +772,6 @@ const Preview = () => {
           </div>
         )}
 
-        {/* Orders */}
         {activeTab === "orders" && (
           <div className="p-6 text-center text-gray-500">
             <ShoppingBag size={40} className="mx-auto mb-3 text-gray-400" />
