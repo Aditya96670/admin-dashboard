@@ -14,9 +14,10 @@ import {
   Save,
   Upload,
   Image as ImageIcon,
+  Layers, // Icon for Specs
 } from "lucide-react";
 
-// --- CONFIGURATION ---
+// --- 1. CONFIGURATION: PRE-FILLED OPTIONS ---
 const COLORS = [
   "Beige",
   "Black",
@@ -32,6 +33,49 @@ const COLORS = [
   "White",
   "Yellow",
 ];
+
+const SPEC_OPTIONS = {
+  Fabric: [
+    "Cotton",
+    "Polyester",
+    "Linen",
+    "Denim",
+    "Wool",
+    "Silk",
+    "Blend",
+    "Spandex",
+    "Rayon",
+  ],
+  Pattern: [
+    "Solid",
+    "Striped",
+    "Checked",
+    "Printed",
+    "Graphic",
+    "Textured",
+    "Polka Dot",
+    "Color Block",
+  ],
+  Fit: [
+    "Regular Fit",
+    "Slim Fit",
+    "Oversized",
+    "Relaxed Fit",
+    "Skinny Fit",
+    "Tapered",
+  ],
+  Collar: [
+    "Polo",
+    "Round Neck",
+    "V-Neck",
+    "Button-Down",
+    "Mandarin",
+    "Hooded",
+    "Spread Collar",
+  ],
+  Sleeve: ["Half Sleeve", "Full Sleeve", "Sleeveless", "3/4 Sleeve"],
+  Style: ["Casual", "Formal", "Party", "Streetwear", "Activewear", "Lounge"],
+};
 
 const categories = {
   Topwear: {
@@ -83,9 +127,17 @@ const defaultFormState = {
   rating: "",
   color: "",
   description: "",
+  // Added Specifications Object
+  specifications: {
+    Fabric: "",
+    Pattern: "",
+    Fit: "",
+    Collar: "",
+    Sleeve: "",
+    Style: "",
+  },
   images: {
-    preview: null, // REQUIRED
-    // OPTIONAL GALLERY (4 Slots)
+    preview: null,
     gallery: [
       { view: "Front View", file: null },
       { view: "Back View", file: null },
@@ -107,6 +159,9 @@ const Preview = () => {
   const [typeOptions, setTypeOptions] = useState([]);
   const [editingIndex, setEditingIndex] = useState(null);
   const [showCustomColor, setShowCustomColor] = useState(false);
+
+  // Track which specs are in "Custom" text mode
+  const [customSpecs, setCustomSpecs] = useState({});
 
   useEffect(() => {
     if (activeTab === "products") {
@@ -132,6 +187,31 @@ const Preview = () => {
       setShowCustomColor(false);
       setFormData((prev) => ({ ...prev, color: value }));
     }
+  };
+
+  // --- NEW: Specification Handler ---
+  const handleSpecChange = (field, value) => {
+    if (value === "Other") {
+      setCustomSpecs((prev) => ({ ...prev, [field]: true }));
+      setFormData((prev) => ({
+        ...prev,
+        specifications: { ...prev.specifications, [field]: "" },
+      }));
+    } else {
+      setCustomSpecs((prev) => ({ ...prev, [field]: false })); // Turn off custom mode if they pick a dropdown item
+      setFormData((prev) => ({
+        ...prev,
+        specifications: { ...prev.specifications, [field]: value },
+      }));
+    }
+  };
+
+  // Handle typing in the custom spec input
+  const handleCustomSpecType = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      specifications: { ...prev.specifications, [field]: value },
+    }));
   };
 
   const handleMainCatChange = (e) => {
@@ -193,7 +273,6 @@ const Preview = () => {
       sizes: prev.sizes.filter((_, i) => i !== index),
     }));
 
-  // --- IMAGE HANDLERS ---
   const handleMainImageUpload = (file) => {
     if (!file) return;
     const r = new FileReader();
@@ -233,7 +312,6 @@ const Preview = () => {
     }));
   };
 
-  // --- VALIDATION ---
   const validateForm = () => {
     if (!formData.title.trim()) {
       alert("Product title required");
@@ -255,13 +333,10 @@ const Preview = () => {
       alert("Original price required");
       return false;
     }
-
-    // IMAGE VALIDATION: Only Main Preview is Checked
     if (!formData.images.preview) {
-      alert("Main Product Image (Preview) is COMPULSORY!");
+      alert("Main Product Image is required!");
       return false;
     }
-
     if (!formData.sizes.some((s) => s.stock > 0)) {
       alert("Add stock for at least one size");
       return false;
@@ -284,6 +359,7 @@ const Preview = () => {
     setSubCatOptions([]);
     setTypeOptions([]);
     setShowCustomColor(false);
+    setCustomSpecs({}); // Reset specs
     setEditingIndex(null);
     setActiveTab("products");
   };
@@ -300,8 +376,19 @@ const Preview = () => {
         : [];
     setSubCatOptions(subs);
     setTypeOptions(types);
-    const isCustom = prod.color && !COLORS.includes(prod.color);
-    setShowCustomColor(isCustom);
+    const isCustomColor = prod.color && !COLORS.includes(prod.color);
+    setShowCustomColor(isCustomColor);
+
+    // Check if specs are custom or standard to show correct inputs
+    const newCustomSpecs = {};
+    Object.keys(SPEC_OPTIONS).forEach((key) => {
+      const val = prod.specifications?.[key];
+      if (val && !SPEC_OPTIONS[key].includes(val)) {
+        newCustomSpecs[key] = true;
+      }
+    });
+    setCustomSpecs(newCustomSpecs);
+
     setEditingIndex(index);
     setActiveTab("addProduct");
   };
@@ -340,6 +427,7 @@ const Preview = () => {
                   setSubCatOptions([]);
                   setTypeOptions([]);
                   setShowCustomColor(false);
+                  setCustomSpecs({});
                 }
               }}
               className={`w-full text-left px-6 py-3 hover:bg-gray-800 flex items-center gap-2 ${
@@ -449,6 +537,7 @@ const Preview = () => {
               </h1>
             </div>
 
+            {/* --- BASIC INFO --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <input
                 className="border p-2 rounded"
@@ -525,6 +614,7 @@ const Preview = () => {
               </div>
             </div>
 
+            {/* --- DESCRIPTION --- */}
             <textarea
               className="border p-2 rounded w-full mb-6"
               rows="3"
@@ -534,6 +624,60 @@ const Preview = () => {
               onChange={handleInputChange}
             />
 
+            {/* --- NEW SECTION: SPECIFICATIONS --- */}
+            <div className="border rounded-lg p-5 mb-6 bg-gray-50">
+              <div className="flex items-center gap-2 mb-4">
+                <Layers size={20} className="text-gray-600" />
+                <h2 className="font-semibold text-lg text-gray-700">
+                  Product Details & Specifications
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.keys(SPEC_OPTIONS).map((key) => (
+                  <div key={key} className="flex flex-col">
+                    <label className="text-xs font-semibold text-gray-500 mb-1">
+                      {key}
+                    </label>
+                    <div className="flex gap-2">
+                      {/* The Dropdown */}
+                      <select
+                        className="border p-2 rounded flex-1 bg-white"
+                        value={
+                          customSpecs[key]
+                            ? "Other"
+                            : formData.specifications[key]
+                        }
+                        onChange={(e) => handleSpecChange(key, e.target.value)}
+                      >
+                        <option value="">Select {key}</option>
+                        {SPEC_OPTIONS[key].map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                        <option value="Other">Other (Type custom)</option>
+                      </select>
+
+                      {/* The Custom Input (Appears if 'Other' is selected) */}
+                      {customSpecs[key] && (
+                        <input
+                          type="text"
+                          placeholder={`Type ${key}`}
+                          className="border p-2 rounded w-1/2"
+                          value={formData.specifications[key]}
+                          onChange={(e) =>
+                            handleCustomSpecType(key, e.target.value)
+                          }
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* --- PRICING & STOCK --- */}
             <h2 className="font-semibold mb-2">Pricing & Inventory</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <input
@@ -598,12 +742,10 @@ const Preview = () => {
               <Plus size={14} /> Add Size
             </button>
 
-            {/* --- UPDATED IMAGE SECTION --- */}
+            {/* --- IMAGES --- */}
             <div className="border-t pt-6 mb-8">
               <h2 className="text-xl font-semibold mb-6">Product Images</h2>
-
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* 1. MAIN IMAGE (COMPULSORY) - Takes up 1 column but highlighted */}
                 <div className="col-span-1">
                   <p className="text-sm font-bold mb-2 flex items-center gap-2">
                     Main Image{" "}
@@ -647,8 +789,6 @@ const Preview = () => {
                     )}
                   </div>
                 </div>
-
-                {/* 2. GALLERY IMAGES (OPTIONAL) - Grid of 4 */}
                 <div className="col-span-1 lg:col-span-2">
                   <p className="text-sm font-bold mb-2 text-gray-600">
                     Additional Views (Optional)
@@ -662,7 +802,6 @@ const Preview = () => {
                         <span className="text-[10px] text-gray-500 mb-1 uppercase tracking-wide">
                           {img.view}
                         </span>
-
                         {img.file ? (
                           <div className="relative w-full h-full">
                             <img
