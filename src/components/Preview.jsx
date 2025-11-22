@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { getProducts } from "../services/admin";
+import {
+  getProducts,
+  createProduct,
+  deleteProductAPI,
+} from "../services/admin";
+
 import {
   Plus,
   Edit2,
@@ -344,22 +349,36 @@ const Preview = () => {
     return true;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
+
+    const token = localStorage.getItem("adminToken");
+
     if (editingIndex !== null) {
-      setProducts((prev) =>
-        prev.map((p, i) => (i === editingIndex ? formData : p))
-      );
-      alert("Product updated!");
-    } else {
-      setProducts((prev) => [...prev, formData]);
-      alert("Product added!");
+      // later we will add updateProduct API
+      alert("Update API not added yet");
+      return;
     }
+
+    // CREATE PRODUCT API CALL
+    const response = await createProduct(formData, token);
+
+    if (response?._id) {
+      alert("Product added!");
+      // Refresh list
+      getProducts(token).then((data) => {
+        if (Array.isArray(data)) setProducts(data);
+      });
+    } else {
+      alert("Error adding product");
+    }
+
+    // Reset form
     setFormData(defaultFormState);
     setSubCatOptions([]);
     setTypeOptions([]);
     setShowCustomColor(false);
-    setCustomSpecs({}); // Reset specs
+    setCustomSpecs({});
     setEditingIndex(null);
     setActiveTab("products");
   };
@@ -393,9 +412,27 @@ const Preview = () => {
     setActiveTab("addProduct");
   };
 
-  const handleDeleteProduct = (index) => {
-    if (window.confirm("Delete this product?"))
-      setProducts((prev) => prev.filter((_, i) => i !== index));
+  const handleDeleteProduct = async (index) => {
+    const productToDelete = products[index];
+    // Check if product has an ID (if it's from DB)
+    if (!productToDelete._id) return;
+
+    if (
+      window.confirm(
+        "Are you sure you want to delete this product from the database?"
+      )
+    ) {
+      try {
+        // 1. Call Backend API
+        await deleteProductAPI(productToDelete._id);
+
+        // 2. Update UI only after success
+        setProducts((prev) => prev.filter((_, i) => i !== index));
+        alert("Product Deleted Successfully");
+      } catch (error) {
+        alert("Failed to delete product");
+      }
+    }
   };
 
   const filteredProducts = products.filter((p) =>
