@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Package,
   Plus,
@@ -10,24 +10,75 @@ import {
   Upload,
 } from "lucide-react";
 import { createProduct } from "../../services/admin";
-import {
-  COLORS,
-  SPEC_OPTIONS,
-  categories,
-  defaultFormState,
-} from "../../constants/options";
+import { COLORS, SPEC_OPTIONS, categories } from "../../constants/options";
+
+// Initial state for the main product details
+const defaultProductInfo = {
+  title: "",
+  description: "",
+  mainCategory: "",
+  subCategory: "",
+  specificType: "",
+  specifications: {},
+  images: {
+    preview: null,
+    gallery: [
+      { view: "Front View", file: null },
+      { view: "Back View", file: null },
+      { view: "Side View", file: null },
+      { view: "Close-up View", file: null },
+    ],
+  },
+};
+
+// HELPER: Returns a fresh object for new variants to avoid reference issues
+const getFreshVariant = () => ({
+  color: "",
+  isCustomColor: false,
+  price: {
+    original: "",
+    discounted: "",
+    offPercent: "",
+  },
+  sizes: [{ size: "S", stock: "" }],
+});
 
 const ProductForm = ({ existingProduct, onSuccess }) => {
-  const [formData, setFormData] = useState(defaultFormState);
+  const [formData, setFormData] = useState(defaultProductInfo);
+  // Initialize with one fresh variant
+  const [variants, setVariants] = useState([getFreshVariant()]);
+
   const [subCatOptions, setSubCatOptions] = useState([]);
   const [typeOptions, setTypeOptions] = useState([]);
-  const [showCustomColor, setShowCustomColor] = useState(false);
   const [customSpecs, setCustomSpecs] = useState({});
 
   useEffect(() => {
     if (existingProduct) {
-      setFormData(existingProduct);
+      setFormData({
+        title: existingProduct.title,
+        description: existingProduct.description,
+        mainCategory: existingProduct.mainCategory,
+        subCategory: existingProduct.subCategory,
+        specificType: existingProduct.specificType,
+        specifications: existingProduct.specifications || {},
+        images: existingProduct.images,
+      });
 
+      if (existingProduct.variants) {
+        setVariants(existingProduct.variants);
+      } else {
+        // Fallback for editing old data structure
+        setVariants([
+          {
+            color: existingProduct.color,
+            isCustomColor: !COLORS.includes(existingProduct.color),
+            price: existingProduct.price,
+            sizes: existingProduct.sizes,
+          },
+        ]);
+      }
+
+      // Load Categories logic
       const subs = existingProduct.mainCategory
         ? Object.keys(categories[existingProduct.mainCategory])
         : [];
@@ -41,10 +92,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
       setSubCatOptions(subs);
       setTypeOptions(types);
 
-      const isCustomColor =
-        existingProduct.color && !COLORS.includes(existingProduct.color);
-      setShowCustomColor(isCustomColor);
-
+      // Specs logic
       const newCustomSpecs = {};
       Object.keys(SPEC_OPTIONS).forEach((key) => {
         const val = existingProduct.specifications?.[key];
@@ -54,15 +102,15 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
       });
       setCustomSpecs(newCustomSpecs);
     } else {
-      setFormData(defaultFormState);
+      setFormData(defaultProductInfo);
+      setVariants([getFreshVariant()]);
       setSubCatOptions([]);
       setTypeOptions([]);
-      setShowCustomColor(false);
       setCustomSpecs({});
     }
   }, [existingProduct]);
 
-  // --- HANDLERS ---
+  // --- GLOBAL HANDLERS ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -88,17 +136,6 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
     setTypeOptions(types);
   };
 
-  const handleColorSelect = (e) => {
-    const value = e.target.value;
-    if (value === "Custom") {
-      setShowCustomColor(true);
-      setFormData((prev) => ({ ...prev, color: "" }));
-    } else {
-      setShowCustomColor(false);
-      setFormData((prev) => ({ ...prev, color: value }));
-    }
-  };
-
   const handleSpecChange = (field, value) => {
     if (value === "Other") {
       setCustomSpecs((prev) => ({ ...prev, [field]: true }));
@@ -115,46 +152,80 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
     }
   };
 
-  const handlePriceChange = (field, value) => {
-    setFormData((prev) => {
-      const newPrice = { ...prev.price, [field]: value };
-      const original = parseFloat(newPrice.original);
-      const discounted = parseFloat(newPrice.discounted);
-      if (
-        !isNaN(original) &&
-        !isNaN(discounted) &&
-        original > 0 &&
-        discounted >= 0 &&
-        discounted <= original
-      ) {
-        newPrice.offPercent = Math.round(
-          ((original - discounted) / original) * 100
-        ).toString();
-      }
-      return { ...prev, price: newPrice };
-    });
+  // --- VARIANT HANDLERS ---
+
+  const addVariant = () => {
+    // Add a fresh, empty object
+    setVariants([...variants, getFreshVariant()]);
   };
 
-  const handleSizeChange = (index, field, value) =>
-    setFormData((prev) => ({
-      ...prev,
-      sizes: prev.sizes.map((s, i) =>
-        i === index ? { ...s, [field]: value } : s
-      ),
-    }));
+  const removeVariant = (index) => {
+    const newVariants = variants.filter((_, i) => i !== index);
+    setVariants(newVariants);
+  };
 
-  const addSize = () =>
-    setFormData((prev) => ({
-      ...prev,
-      sizes: [...prev.sizes, { size: "S", stock: "" }],
-    }));
-  const removeSize = (index) =>
-    setFormData((prev) => ({
-      ...prev,
-      sizes: prev.sizes.filter((_, i) => i !== index),
-    }));
+  const handleVariantColorChange = (index, value) => {
+    // We use JSON parse/stringify for a quick deep copy to avoid reference issues
+    const updatedVariants = JSON.parse(JSON.stringify(variants));
+    if (value === "Custom") {
+      updatedVariants[index].isCustomColor = true;
+      updatedVariants[index].color = "";
+    } else {
+      updatedVariants[index].isCustomColor = false;
+      updatedVariants[index].color = value;
+    }
+    setVariants(updatedVariants);
+  };
 
-  // Image Handlers
+  const handleVariantCustomColorType = (index, value) => {
+    const updatedVariants = [...variants];
+    updatedVariants[index].color = value;
+    setVariants(updatedVariants);
+  };
+
+  const handleVariantPriceChange = (index, field, value) => {
+    const updatedVariants = JSON.parse(JSON.stringify(variants));
+    updatedVariants[index].price[field] = value;
+
+    // Calculate Discount
+    const original = parseFloat(updatedVariants[index].price.original);
+    const discounted = parseFloat(updatedVariants[index].price.discounted);
+
+    if (
+      !isNaN(original) &&
+      !isNaN(discounted) &&
+      original > 0 &&
+      discounted >= 0 &&
+      discounted <= original
+    ) {
+      updatedVariants[index].price.offPercent = Math.round(
+        ((original - discounted) / original) * 100
+      ).toString();
+    }
+
+    setVariants(updatedVariants);
+  };
+
+  const handleVariantSizeChange = (varIndex, sizeIndex, field, value) => {
+    const updatedVariants = JSON.parse(JSON.stringify(variants));
+    updatedVariants[varIndex].sizes[sizeIndex][field] = value;
+    setVariants(updatedVariants);
+  };
+
+  const addSizeToVariant = (varIndex) => {
+    const updatedVariants = JSON.parse(JSON.stringify(variants));
+    updatedVariants[varIndex].sizes.push({ size: "S", stock: "" });
+    setVariants(updatedVariants);
+  };
+
+  const removeSizeFromVariant = (varIndex, sizeIndex) => {
+    const updatedVariants = JSON.parse(JSON.stringify(variants));
+    updatedVariants[varIndex].sizes = updatedVariants[varIndex].sizes.filter(
+      (_, i) => i !== sizeIndex
+    );
+    setVariants(updatedVariants);
+  };
+
   const handleMainImageUpload = (file) => {
     if (!file) return;
     const r = new FileReader();
@@ -182,43 +253,42 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
     r.readAsDataURL(file);
   };
 
-  const validateForm = () => {
-    if (!formData.title.trim()) return alert("Product title required");
-    if (!formData.mainCategory || !formData.subCategory)
-      return alert("Category required");
-    if (!formData.color.trim()) return alert("Color is required");
-    if (isNaN(parseFloat(formData.price.original)))
-      return alert("Original price required");
-    if (!formData.images.preview)
-      return alert("Main Product Image is required!");
-    if (!formData.sizes.some((s) => s.stock > 0))
-      return alert("Add stock for at least one size");
-    return true;
-  };
-
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!formData.title.trim()) return alert("Product title required");
+    if (!formData.mainCategory) return alert("Category required");
+    if (!formData.images.preview) return alert("Main Image required");
+
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
+      if (!v.color) return alert(`Color required for Variant ${i + 1}`);
+      if (!v.price.original)
+        return alert(`Price required for Variant ${i + 1}`);
+      if (!v.sizes.some((s) => s.stock > 0))
+        return alert(`Add stock for Variant ${i + 1}`);
+    }
+
     const token = localStorage.getItem("adminToken");
 
-    if (existingProduct) {
-      alert("Update API logic to be implemented here.");
-      return;
-    }
+    const finalPayload = {
+      ...formData,
+      variants: variants,
+    };
 
-    const response = await createProduct(formData, token);
-    if (response?._id) {
-      alert("Product added!");
-      setFormData(defaultFormState);
-      if (onSuccess) onSuccess();
-    } else {
+    try {
+      const response = await createProduct(finalPayload, token);
+
+      if (response?._id) {
+        alert("Product Created Successfully!");
+        setFormData(defaultProductInfo);
+        setVariants([getFreshVariant()]);
+        if (onSuccess) onSuccess();
+      } else {
+        alert("Server Error");
+      }
+    } catch (error) {
+      console.error(error);
       alert("Error adding product");
     }
-  };
-
-  const currentColorDropdownValue = () => {
-    if (formData.color === "") return "";
-    if (COLORS.includes(formData.color)) return formData.color;
-    return "Custom";
   };
 
   return (
@@ -279,34 +349,8 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
             ))}
           </select>
         )}
-
-        <div className="flex gap-2">
-          <select
-            className="border p-2 rounded flex-1"
-            value={currentColorDropdownValue()}
-            onChange={handleColorSelect}
-          >
-            <option value="">Select Color *</option>
-            {COLORS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-            <option value="Custom">Custom Color</option>
-          </select>
-          {showCustomColor && (
-            <input
-              className="border p-2 rounded w-32"
-              placeholder="Type Color"
-              name="color"
-              value={formData.color}
-              onChange={handleInputChange}
-            />
-          )}
-        </div>
       </div>
 
-      {/* --- DESCRIPTION --- */}
       <textarea
         className="border p-2 rounded w-full mb-6"
         rows="3"
@@ -316,12 +360,11 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         onChange={handleInputChange}
       />
 
-      {/* --- SPECIFICATIONS --- */}
-      <div className="border rounded-lg p-5 mb-6 bg-gray-50">
+      <div className="border rounded-lg p-5 mb-8 bg-gray-50">
         <div className="flex items-center gap-2 mb-4">
           <Layers size={20} className="text-gray-600" />
           <h2 className="font-semibold text-lg text-gray-700">
-            Product Details & Specifications
+            Specifications
           </h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -344,7 +387,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
                       {opt}
                     </option>
                   ))}
-                  <option value="Other">Other (Type custom)</option>
+                  <option value="Other">Other</option>
                 </select>
                 {customSpecs[key] && (
                   <input
@@ -369,74 +412,178 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         </div>
       </div>
 
-      {/* --- PRICING & STOCK --- */}
-      <h2 className="font-semibold mb-2">Pricing & Inventory</h2>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <input
-          type="number"
-          className="border p-2 rounded"
-          placeholder="Original Price *"
-          value={formData.price.original}
-          onChange={(e) => handlePriceChange("original", e.target.value)}
-        />
-        <input
-          type="number"
-          className="border p-2 rounded"
-          placeholder="Discounted Price"
-          value={formData.price.discounted}
-          onChange={(e) => handlePriceChange("discounted", e.target.value)}
-        />
-        <input
-          type="number"
-          className="border p-2 rounded bg-gray-50"
-          placeholder="Discount %"
-          value={formData.price.offPercent}
-          readOnly
-        />
+      {/* --- VARIANTS SECTION --- */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+          Pricing & Variants
+        </h2>
+
+        {variants.map((variant, index) => (
+          <div
+            key={index}
+            className="border-2 border-blue-100 rounded-lg p-5 mb-6 bg-white shadow-sm relative"
+          >
+            {variants.length > 1 && (
+              <button
+                onClick={() => removeVariant(index)}
+                className="absolute top-2 right-2 text-red-500 hover:bg-red-50 p-1 rounded"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+
+            <h3 className="text-sm font-bold text-blue-600 mb-3 uppercase tracking-wider">
+              Variant {index + 1}
+            </h3>
+
+            <div className="mb-4 bg-gray-50 p-3 rounded">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Color
+              </label>
+              <div className="flex gap-2">
+                <select
+                  className="border p-2 rounded flex-1"
+                  value={variant.isCustomColor ? "Custom" : variant.color}
+                  onChange={(e) =>
+                    handleVariantColorChange(index, e.target.value)
+                  }
+                >
+                  <option value="">Select Color *</option>
+                  {COLORS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                  <option value="Custom">Custom Color</option>
+                </select>
+                {variant.isCustomColor && (
+                  <input
+                    className="border p-2 rounded w-1/2"
+                    placeholder="Type Color Name"
+                    value={variant.color}
+                    onChange={(e) =>
+                      handleVariantCustomColorType(index, e.target.value)
+                    }
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="text-xs text-gray-500">Original Price</label>
+                <input
+                  type="number"
+                  className="border p-2 rounded w-full"
+                  placeholder="0"
+                  value={variant.price.original}
+                  onChange={(e) =>
+                    handleVariantPriceChange(index, "original", e.target.value)
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">
+                  Discounted Price
+                </label>
+                <input
+                  type="number"
+                  className="border p-2 rounded w-full"
+                  placeholder="0"
+                  value={variant.price.discounted}
+                  onChange={(e) =>
+                    handleVariantPriceChange(
+                      index,
+                      "discounted",
+                      e.target.value
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Discount %</label>
+                <input
+                  type="text"
+                  className="border p-2 rounded w-full bg-gray-100"
+                  value={variant.price.offPercent}
+                  readOnly
+                />
+              </div>
+            </div>
+
+            <div className="bg-gray-50 p-3 rounded">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sizes & Stock
+              </label>
+              {variant.sizes.map((s, sIndex) => (
+                <div
+                  key={sIndex}
+                  className="flex flex-wrap gap-2 mb-2 items-center"
+                >
+                  <select
+                    value={s.size}
+                    className="border p-2 rounded w-24"
+                    onChange={(e) =>
+                      handleVariantSizeChange(
+                        index,
+                        sIndex,
+                        "size",
+                        e.target.value
+                      )
+                    }
+                  >
+                    {["S", "M", "L", "XL", "XXL"].map((sz) => (
+                      <option key={sz}>{sz}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    className="border p-2 rounded flex-1"
+                    placeholder="Qty"
+                    value={s.stock}
+                    onChange={(e) =>
+                      handleVariantSizeChange(
+                        index,
+                        sIndex,
+                        "stock",
+                        e.target.value
+                      )
+                    }
+                  />
+                  {variant.sizes.length > 1 && (
+                    <button
+                      type="button"
+                      className="text-red-400 hover:text-red-600"
+                      onClick={() => removeSizeFromVariant(index, sIndex)}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => addSizeToVariant(index)}
+                className="text-blue-600 text-xs font-bold flex items-center gap-1 mt-2"
+              >
+                <Plus size={14} /> Add Another Size
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={addVariant}
+          className="w-full border-2 border-dashed border-blue-300 text-blue-600 p-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-50"
+        >
+          <Plus size={20} /> Add Another Color Variant
+        </button>
       </div>
 
-      {formData.sizes.map((s, i) => (
-        <div key={i} className="flex flex-wrap gap-4 mb-3 items-center">
-          <select
-            value={s.size}
-            className="border p-2 rounded"
-            onChange={(e) => handleSizeChange(i, "size", e.target.value)}
-          >
-            {["S", "M", "L", "XL", "XXL"].map((sz) => (
-              <option key={sz}>{sz}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            className="border p-2 rounded"
-            placeholder="Stock"
-            value={s.stock}
-            onChange={(e) => handleSizeChange(i, "stock", e.target.value)}
-          />
-          {formData.sizes.length > 1 && (
-            <button
-              type="button"
-              className="text-red-600"
-              onClick={() => removeSize(i)}
-            >
-              <Trash2 />
-            </button>
-          )}
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={addSize}
-        className="bg-blue-600 text-white px-3 py-1 rounded mb-8 text-sm flex items-center gap-1 cursor-pointer"
-      >
-        <Plus size={14} /> Add Size
-      </button>
-
-      {/* --- IMAGES --- */}
       <div className="border-t pt-6 mb-8">
-        <h2 className="text-xl font-semibold mb-6">Product Images</h2>
+        <h2 className="text-xl font-semibold mb-6">Product Images (General)</h2>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Image Logic */}
           <div className="col-span-1">
             <p className="text-sm font-bold mb-2 flex items-center gap-2">
               Main Image{" "}
@@ -479,10 +626,9 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
             </div>
           </div>
 
-          {/* Gallery Logic */}
           <div className="col-span-1 lg:col-span-2">
             <p className="text-sm font-bold mb-2 text-gray-600">
-              Additional Views (Optional)
+              Additional Views
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {formData.images.gallery.map((img, i) => (
@@ -537,12 +683,15 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         </div>
       </div>
 
-      <button
-        onClick={handleSubmit}
-        className="bg-green-600 text-white px-6 py-3 rounded font-bold w-full md:w-auto cursor-pointer active:scale-95"
-      >
-        <Save className="inline mr-2" /> Save Product
-      </button>
+      <div className="flex flex-col md:flex-row gap-4 mt-8 pt-6 border-t">
+        <button
+          onClick={() => handleSubmit()}
+          className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+        >
+          <Save size={20} />
+          {existingProduct ? "Update Product" : "Save Product"}
+        </button>
+      </div>
     </div>
   );
 };
