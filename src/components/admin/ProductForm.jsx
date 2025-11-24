@@ -9,7 +9,7 @@ import {
   Image as ImageIcon,
   Upload,
 } from "lucide-react";
-import { createProduct } from "../../services/admin";
+import { createProduct, updateProduct } from "../../services/admin";
 import { COLORS, SPEC_OPTIONS, categories } from "../../constants/options";
 
 // Initial state for the main product details
@@ -254,40 +254,95 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
   };
 
   const handleSubmit = async () => {
+    // 1. GLOBAL VALIDATION
     if (!formData.title.trim()) return alert("Product title required");
     if (!formData.mainCategory) return alert("Category required");
     if (!formData.images.preview) return alert("Main Image required");
 
+    // 2. VARIANT VALIDATION
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
       if (!v.color) return alert(`Color required for Variant ${i + 1}`);
       if (!v.price.original)
-        return alert(`Price required for Variant ${i + 1}`);
-      if (!v.sizes.some((s) => s.stock > 0))
-        return alert(`Add stock for Variant ${i + 1}`);
+        return alert(`Original Price required for Variant ${i + 1}`);
+      if (v.sizes.length === 0)
+        return alert(`Add at least one size for Variant ${i + 1}`);
+
+      for (let j = 0; j < v.sizes.length; j++) {
+        const s = v.sizes[j];
+        if (s.stock === "" || s.stock === null || s.stock < 0) {
+          return alert(
+            `Please enter a valid Stock quantity for size "${
+              s.size
+            }" in Variant ${i + 1}`
+          );
+        }
+      }
     }
 
     const token = localStorage.getItem("adminToken");
 
+    // 3. PREPARE PAYLOAD
+    const cleanVariants = variants.map((v) => ({
+      ...v,
+      price: {
+        ...v.price,
+        original: parseFloat(v.price.original),
+        discounted: parseFloat(v.price.discounted) || 0,
+      },
+      sizes: v.sizes.map((s) => ({
+        ...s,
+        stock: parseInt(s.stock, 10),
+      })),
+    }));
+
     const finalPayload = {
       ...formData,
-      variants: variants,
+      variants: cleanVariants,
     };
 
     try {
-      const response = await createProduct(finalPayload, token);
+      let response;
+
+      // --- LOGIC CHANGE HERE ---
+      if (existingProduct) {
+        // UPDATE MODE
+        response = await updateProduct(
+          existingProduct._id,
+          finalPayload,
+          token
+        );
+      } else {
+        // CREATE MODE
+        response = await createProduct(finalPayload, token);
+      }
+      // -------------------------
 
       if (response?._id) {
-        alert("Product Created Successfully!");
-        setFormData(defaultProductInfo);
-        setVariants([getFreshVariant()]);
+        alert(
+          existingProduct
+            ? "Product Updated Successfully!"
+            : "Product Created Successfully!"
+        );
+
+        // Only clear form if creating new. If updating, usually we close the modal (handled by onSuccess)
+        if (!existingProduct) {
+          setFormData(defaultProductInfo);
+          setVariants([getFreshVariant()]);
+          window.scrollTo(0, 0);
+        }
+
         if (onSuccess) onSuccess();
       } else {
-        alert("Server Error");
+        alert("Server Error: Operation failed.");
       }
     } catch (error) {
       console.error(error);
-      alert("Error adding product");
+      const errMsg =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        "Error saving product";
+      alert(errMsg);
     }
   };
 
@@ -310,7 +365,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         />
 
         <select
-          className="border p-2 rounded"
+          className="border p-2 rounded cursor-pointer"
           name="mainCategory"
           value={formData.mainCategory}
           onChange={handleMainCatChange}
@@ -322,7 +377,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         </select>
 
         <select
-          className={`border p-2 rounded ${
+          className={`border p-2 rounded cursor-pointer ${
             !formData.mainCategory ? "bg-gray-100" : ""
           }`}
           name="subCategory"
@@ -375,7 +430,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
               </label>
               <div className="flex gap-2">
                 <select
-                  className="border p-2 rounded flex-1 bg-white"
+                  className="border p-2 rounded flex-1 bg-white cursor-pointer"
                   value={
                     customSpecs[key] ? "Other" : formData.specifications[key]
                   }
@@ -442,7 +497,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
               </label>
               <div className="flex gap-2">
                 <select
-                  className="border p-2 rounded flex-1"
+                  className="border p-2 rounded flex-1 cursor-pointer"
                   value={variant.isCustomColor ? "Custom" : variant.color}
                   onChange={(e) =>
                     handleVariantColorChange(index, e.target.value)
@@ -522,7 +577,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
                 >
                   <select
                     value={s.size}
-                    className="border p-2 rounded w-24"
+                    className="border p-2 rounded w-24 cursor-pointer"
                     onChange={(e) =>
                       handleVariantSizeChange(
                         index,
@@ -564,7 +619,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
               <button
                 type="button"
                 onClick={() => addSizeToVariant(index)}
-                className="text-blue-600 text-xs font-bold flex items-center gap-1 mt-2"
+                className="text-blue-600 text-xs font-bold flex items-center gap-1 mt-2 cursor-pointer"
               >
                 <Plus size={14} /> Add Another Size
               </button>
@@ -575,7 +630,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         <button
           type="button"
           onClick={addVariant}
-          className="w-full border-2 border-dashed border-blue-300 text-blue-600 p-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-50"
+          className="w-full border-2 border-dashed border-blue-300 text-blue-600 p-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-50 cursor-pointer"
         >
           <Plus size={20} /> Add Another Color Variant
         </button>
@@ -686,7 +741,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
       <div className="flex flex-col md:flex-row gap-4 mt-8 pt-6 border-t">
         <button
           onClick={() => handleSubmit()}
-          className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm"
+          className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer active:scale-95"
         >
           <Save size={20} />
           {existingProduct ? "Update Product" : "Save Product"}

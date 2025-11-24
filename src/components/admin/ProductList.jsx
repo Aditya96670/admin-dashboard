@@ -47,52 +47,71 @@ const ProductList = ({ products, setProducts, onEdit }) => {
           <p className="text-center text-gray-500 py-6">No products found.</p>
         ) : (
           <div className="space-y-4">
-            {filteredProducts.map((p, i) => (
-              <div
-                key={p._id || i}
-                className="border rounded-lg p-4 flex gap-4 justify-between hover:shadow-sm"
-              >
-                <div className="flex gap-4">
-                  <div className="w-16 h-16 bg-gray-100 rounded border overflow-hidden">
-                    {p.images?.preview ? (
-                      <img
-                        src={p.images.preview}
-                        className="w-full h-full object-cover"
-                        alt={p.title}
-                      />
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-[10px]">
-                        No Img
-                      </div>
-                    )}
+            {filteredProducts.map((p, i) => {
+              // --- FIX: Access the first variant for preview info ---
+              // Since price/color are now inside 'variants', we pluck the first one.
+              const firstVariant = p.variants?.[0] || {};
+              const price = firstVariant.price || {};
+              // -----------------------------------------------------
+
+              return (
+                <div
+                  key={p._id || i}
+                  className="border rounded-lg p-4 flex gap-4 justify-between hover:shadow-sm"
+                >
+                  <div className="flex gap-4">
+                    <div className="w-16 h-16 bg-gray-100 rounded border overflow-hidden">
+                      {p.images?.preview ? (
+                        <img
+                          src={p.images.preview}
+                          className="w-full h-full object-cover"
+                          alt={p.title}
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-[10px]">
+                          No Img
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{p.title}</p>
+                      <p className="text-xs text-gray-500">
+                        {p.mainCategory} / {p.subCategory}
+                      </p>
+
+                      {/* Show Color of the first variant */}
+                      <p className="text-xs text-gray-500">
+                        Color: {firstVariant.color || "N/A"}
+                        {p.variants?.length > 1 && (
+                          <span className="text-[10px] text-blue-500 ml-1">
+                            (+{p.variants.length - 1} more)
+                          </span>
+                        )}
+                      </p>
+
+                      {/* Show Price of the first variant */}
+                      <p className="text-sm mt-1">
+                        ₹{price.discounted || price.original || 0}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold">{p.title}</p>
-                    <p className="text-xs text-gray-500">
-                      {p.mainCategory} / {p.subCategory}
-                    </p>
-                    <p className="text-xs text-gray-500">Color: {p.color}</p>
-                    <p className="text-sm mt-1">
-                      ₹{p.price.discounted || p.price.original}
-                    </p>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => onEdit(p)}
+                      className="text-blue-600 text-sm flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit2 size={16} /> Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteProduct(p)}
+                      className="text-red-600 text-sm flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 size={16} /> Delete
+                    </button>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={() => onEdit(p)}
-                    className="text-blue-600 text-sm flex items-center gap-1"
-                  >
-                    <Edit2 size={16} /> Edit
-                  </button>
-                  <button
-                    onClick={() => handleDeleteProduct(p)}
-                    className="text-red-600 text-sm flex items-center gap-1"
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

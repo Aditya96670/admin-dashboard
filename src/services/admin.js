@@ -30,6 +30,25 @@ export async function createProduct(formData) {
   return res.json();
 }
 
+// --- NEW FUNCTION: Update Product ---
+export async function updateProduct(id, formData) {
+  const token = getToken();
+  if (!token) {
+    alert("Authentication Error: Please login again.");
+    return;
+  }
+
+  const res = await fetch(`${API}/admin/products/${id}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(formData),
+  });
+  return res.json();
+}
+
 // --- NEW FUNCTION ---
 export async function deleteProductAPI(id) {
   const token = getToken();
