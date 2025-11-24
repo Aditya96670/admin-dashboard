@@ -53,7 +53,10 @@ const AdminDashboard = () => {
 
       <div className="flex-1 overflow-auto">
         <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <button
+            className="cursor-pointer"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
             {sidebarOpen ? <X /> : <Menu />}
           </button>
           <p className="font-medium">Admin User</p>
