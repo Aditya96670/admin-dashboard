@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mail, Lock, LayoutDashboard, Loader2 } from "lucide-react";
 
-// Update this to match your backend port
 const API_URL = "http://localhost:8000/api/v1";
 
 const AdminLogin = () => {
@@ -22,7 +21,6 @@ const AdminLogin = () => {
     setError("");
 
     try {
-      // 1. FIXED URL: Added '/auth' to match server.js
       const response = await fetch(`${API_URL}/admin/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -35,7 +33,6 @@ const AdminLogin = () => {
         throw new Error(data.message || "Login failed");
       }
 
-      // 2. FIXED TOKEN NAME: Saving as "adminToken" (to match Preview.jsx)
       localStorage.setItem("adminToken", data.token);
 
       navigate("/dashboard");
