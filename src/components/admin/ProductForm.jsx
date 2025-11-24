@@ -427,7 +427,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
       <button
         type="button"
         onClick={addSize}
-        className="bg-blue-600 text-white px-3 py-1 rounded mb-8 text-sm flex items-center gap-1"
+        className="bg-blue-600 text-white px-3 py-1 rounded mb-8 text-sm flex items-center gap-1 cursor-pointer"
       >
         <Plus size={14} /> Add Size
       </button>
@@ -539,7 +539,7 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
 
       <button
         onClick={handleSubmit}
-        className="bg-green-600 text-white px-6 py-3 rounded font-bold w-full md:w-auto"
+        className="bg-green-600 text-white px-6 py-3 rounded font-bold w-full md:w-auto cursor-pointer active:scale-95"
       >
         <Save className="inline mr-2" /> Save Product
       </button>
