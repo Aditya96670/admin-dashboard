@@ -8,6 +8,7 @@ import {
   Save,
   Image as ImageIcon,
   Upload,
+  Loader,
 } from "lucide-react";
 import { createProduct, updateProduct } from "../../services/admin";
 import { COLORS, categories } from "../../constants/options";
@@ -44,6 +45,7 @@ const getFreshVariant = () => ({
 const ProductForm = ({ existingProduct, onSuccess }) => {
   const [formData, setFormData] = useState(defaultProductInfo);
   const [variants, setVariants] = useState([getFreshVariant()]);
+  const [isLoading, setIsLoading] = useState(false);
   const [subCatOptions, setSubCatOptions] = useState([]);
   const [typeOptions, setTypeOptions] = useState([]);
 
@@ -290,6 +292,8 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
       variants: cleanVariants,
     };
 
+    setIsLoading(true);
+
     try {
       let response;
       if (existingProduct) {
@@ -326,6 +330,8 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         error.response?.data?.error ||
         "Error saving product";
       alert(errMsg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -741,11 +747,26 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
 
       <div className="flex flex-col md:flex-row gap-4 mt-8 pt-6 border-t">
         <button
-          onClick={() => handleSubmit()}
-          className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer active:scale-95"
+          onClick={handleSubmit}
+          disabled={isLoading}
+          className={`flex-1 px-6 py-3 rounded font-bold flex items-center justify-center gap-2 transition-colors shadow-sm 
+            ${
+              isLoading
+                ? "bg-gray-400 cursor-not-allowed text-white"
+                : "bg-green-600 hover:bg-green-700 text-white cursor-pointer active:scale-95"
+            }`}
         >
-          <Save size={20} />
-          {existingProduct ? "Update Product" : "Save Product"}
+          {isLoading ? (
+            <>
+              <Loader size={20} className="animate-spin" />
+              Processing...
+            </>
+          ) : (
+            <>
+              <Save size={20} />
+              {existingProduct ? "Update Product" : "Save Product"}
+            </>
+          )}
         </button>
       </div>
     </div>
