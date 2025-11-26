@@ -25,7 +25,7 @@ const defaultProductInfo = {
     gallery: [
       { view: "Front View", file: null },
       { view: "Back View", file: null },
-      { view: "Side View", file: null },
+      { view: "Hover View", file: null },
       { view: "Close-up View", file: null },
     ],
   },
