@@ -10,7 +10,7 @@ import {
   Upload,
 } from "lucide-react";
 import { createProduct, updateProduct } from "../../services/admin";
-import { COLORS, SPEC_OPTIONS, categories } from "../../constants/options";
+import { COLORS, categories } from "../../constants/options";
 
 const defaultProductInfo = {
   title: "",
@@ -18,7 +18,7 @@ const defaultProductInfo = {
   mainCategory: "",
   subCategory: "",
   specificType: "",
-  specifications: {},
+  specifications: [],
   images: {
     preview: null,
     gallery: [
@@ -30,7 +30,6 @@ const defaultProductInfo = {
   },
 };
 
-// HELPER: Returns a fresh object for new variants to avoid reference issues
 const getFreshVariant = () => ({
   color: "",
   isCustomColor: false,
@@ -44,29 +43,37 @@ const getFreshVariant = () => ({
 
 const ProductForm = ({ existingProduct, onSuccess }) => {
   const [formData, setFormData] = useState(defaultProductInfo);
-  // Initialize with one fresh variant
   const [variants, setVariants] = useState([getFreshVariant()]);
-
   const [subCatOptions, setSubCatOptions] = useState([]);
   const [typeOptions, setTypeOptions] = useState([]);
-  const [customSpecs, setCustomSpecs] = useState({});
 
   useEffect(() => {
     if (existingProduct) {
+      let loadedSpecs = [];
+      if (Array.isArray(existingProduct.specifications)) {
+        loadedSpecs = existingProduct.specifications;
+      } else if (
+        existingProduct.specifications &&
+        typeof existingProduct.specifications === "object"
+      ) {
+        loadedSpecs = Object.entries(existingProduct.specifications).map(
+          ([key, value]) => ({ key, value })
+        );
+      }
+
       setFormData({
         title: existingProduct.title,
         description: existingProduct.description,
         mainCategory: existingProduct.mainCategory,
         subCategory: existingProduct.subCategory,
         specificType: existingProduct.specificType,
-        specifications: existingProduct.specifications || {},
+        specifications: loadedSpecs,
         images: existingProduct.images,
       });
 
       if (existingProduct.variants) {
         setVariants(existingProduct.variants);
       } else {
-        // Fallback for editing old data structure
         setVariants([
           {
             color: existingProduct.color,
@@ -77,7 +84,6 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         ]);
       }
 
-      // Load Categories logic
       const subs = existingProduct.mainCategory
         ? Object.keys(categories[existingProduct.mainCategory])
         : [];
@@ -90,26 +96,14 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
 
       setSubCatOptions(subs);
       setTypeOptions(types);
-
-      // Specs logic
-      const newCustomSpecs = {};
-      Object.keys(SPEC_OPTIONS).forEach((key) => {
-        const val = existingProduct.specifications?.[key];
-        if (val && !SPEC_OPTIONS[key].includes(val)) {
-          newCustomSpecs[key] = true;
-        }
-      });
-      setCustomSpecs(newCustomSpecs);
     } else {
       setFormData(defaultProductInfo);
       setVariants([getFreshVariant()]);
       setSubCatOptions([]);
       setTypeOptions([]);
-      setCustomSpecs({});
     }
   }, [existingProduct]);
 
-  // --- GLOBAL HANDLERS ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -135,26 +129,27 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
     setTypeOptions(types);
   };
 
-  const handleSpecChange = (field, value) => {
-    if (value === "Other") {
-      setCustomSpecs((prev) => ({ ...prev, [field]: true }));
-      setFormData((prev) => ({
-        ...prev,
-        specifications: { ...prev.specifications, [field]: "" },
-      }));
-    } else {
-      setCustomSpecs((prev) => ({ ...prev, [field]: false }));
-      setFormData((prev) => ({
-        ...prev,
-        specifications: { ...prev.specifications, [field]: value },
-      }));
-    }
+  const handleAddSpec = () => {
+    setFormData((prev) => ({
+      ...prev,
+      specifications: [...prev.specifications, { key: "", value: "" }],
+    }));
   };
 
-  // --- VARIANT HANDLERS ---
+  const handleRemoveSpec = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      specifications: prev.specifications.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleSpecChange = (index, field, value) => {
+    const newSpecs = [...formData.specifications];
+    newSpecs[index][field] = value;
+    setFormData((prev) => ({ ...prev, specifications: newSpecs }));
+  };
 
   const addVariant = () => {
-    // Add a fresh, empty object
     setVariants([...variants, getFreshVariant()]);
   };
 
@@ -164,7 +159,6 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
   };
 
   const handleVariantColorChange = (index, value) => {
-    // We use JSON parse/stringify for a quick deep copy to avoid reference issues
     const updatedVariants = JSON.parse(JSON.stringify(variants));
     if (value === "Custom") {
       updatedVariants[index].isCustomColor = true;
@@ -186,7 +180,6 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
     const updatedVariants = JSON.parse(JSON.stringify(variants));
     updatedVariants[index].price[field] = value;
 
-    // Calculate Discount
     const original = parseFloat(updatedVariants[index].price.original);
     const discounted = parseFloat(updatedVariants[index].price.discounted);
 
@@ -253,12 +246,10 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
   };
 
   const handleSubmit = async () => {
-    // 1. GLOBAL VALIDATION
     if (!formData.title.trim()) return alert("Product title required");
     if (!formData.mainCategory) return alert("Category required");
     if (!formData.images.preview) return alert("Main Image required");
 
-    // 2. VARIANT VALIDATION
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
       if (!v.color) return alert(`Color required for Variant ${i + 1}`);
@@ -281,7 +272,6 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
 
     const token = localStorage.getItem("adminToken");
 
-    // 3. PREPARE PAYLOAD
     const cleanVariants = variants.map((v) => ({
       ...v,
       price: {
@@ -347,7 +337,6 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
         </h1>
       </div>
 
-      {/* --- BASIC INFO --- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <input
           className="border p-2 rounded"
@@ -409,58 +398,77 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
       />
 
       <div className="border rounded-lg p-5 mb-8 bg-gray-50">
-        <div className="flex items-center gap-2 mb-4">
-          <Layers size={20} className="text-gray-600" />
-          <h2 className="font-semibold text-lg text-gray-700">
-            Specifications
-          </h2>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Layers size={20} className="text-gray-600" />
+            <h2 className="font-semibold text-lg text-gray-700">
+              Specifications
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddSpec}
+            className="text-sm text-blue-600 font-bold hover:underline flex items-center gap-1"
+          >
+            <Plus size={16} /> Add Specification
+          </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.keys(SPEC_OPTIONS).map((key) => (
-            <div key={key} className="flex flex-col">
-              <label className="text-xs font-semibold text-gray-500 mb-1">
-                {key}
-              </label>
-              <div className="flex gap-2">
-                <select
-                  className="border p-2 rounded flex-1 bg-white cursor-pointer"
-                  value={
-                    customSpecs[key] ? "Other" : formData.specifications[key]
-                  }
-                  onChange={(e) => handleSpecChange(key, e.target.value)}
-                >
-                  <option value="">Select {key}</option>
-                  {SPEC_OPTIONS[key].map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                  <option value="Other">Other</option>
-                </select>
-                {customSpecs[key] && (
-                  <input
-                    type="text"
-                    placeholder={`Type ${key}`}
-                    className="border p-2 rounded w-1/2"
-                    value={formData.specifications[key]}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        specifications: {
-                          ...prev.specifications,
-                          [key]: e.target.value,
-                        },
-                      }))
-                    }
-                  />
-                )}
-              </div>
+
+        {formData.specifications.length === 0 && (
+          <p className="text-sm text-gray-400 italic text-center py-2">
+            No specifications added. Click "Add Specification" to start.
+          </p>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {formData.specifications.map((spec, index) => (
+            <div key={index} className="flex gap-2 items-center">
+              {/* KEY INPUT */}
+              <input
+                type="text"
+                list="common-keys"
+                placeholder="Name (e.g. Fabric)"
+                className="border p-2 rounded flex-1"
+                value={spec.key}
+                onChange={(e) => handleSpecChange(index, "key", e.target.value)}
+              />
+
+              {/* VALUE INPUT */}
+              <input
+                type="text"
+                placeholder="Value (e.g. Cotton)"
+                className="border p-2 rounded flex-1"
+                value={spec.value}
+                onChange={(e) =>
+                  handleSpecChange(index, "value", e.target.value)
+                }
+              />
+
+              {/* REMOVE BUTTON */}
+              <button
+                type="button"
+                onClick={() => handleRemoveSpec(index)}
+                className="text-red-400 hover:text-red-600 p-2"
+                title="Remove Specification"
+              >
+                <Trash2 size={18} />
+              </button>
             </div>
           ))}
         </div>
+
+        {/* Optional: Suggestions for common keys */}
+        <datalist id="common-keys">
+          <option value="Fabric" />
+          <option value="Pattern" />
+          <option value="Fit" />
+          <option value="Sleeve" />
+          <option value="Neck" />
+          <option value="Warranty" />
+          <option value="Material" />
+        </datalist>
       </div>
 
-      {/* --- VARIANTS SECTION --- */}
       <div className="mb-8">
         <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
           Pricing & Variants
