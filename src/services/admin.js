@@ -30,7 +30,6 @@ export async function createProduct(formData) {
   return res.json();
 }
 
-// --- NEW FUNCTION: Update Product ---
 export async function updateProduct(id, formData) {
   const token = getToken();
   if (!token) {
@@ -49,7 +48,6 @@ export async function updateProduct(id, formData) {
   return res.json();
 }
 
-// --- NEW FUNCTION ---
 export async function deleteProductAPI(id) {
   const token = getToken();
 
