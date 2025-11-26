@@ -12,7 +12,6 @@ import {
 import { createProduct, updateProduct } from "../../services/admin";
 import { COLORS, SPEC_OPTIONS, categories } from "../../constants/options";
 
-// Initial state for the main product details
 const defaultProductInfo = {
   title: "",
   description: "",
@@ -303,20 +302,15 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
 
     try {
       let response;
-
-      // --- LOGIC CHANGE HERE ---
       if (existingProduct) {
-        // UPDATE MODE
         response = await updateProduct(
           existingProduct._id,
           finalPayload,
           token
         );
       } else {
-        // CREATE MODE
         response = await createProduct(finalPayload, token);
       }
-      // -------------------------
 
       if (response?._id) {
         alert(
@@ -325,7 +319,6 @@ const ProductForm = ({ existingProduct, onSuccess }) => {
             : "Product Created Successfully!"
         );
 
-        // Only clear form if creating new. If updating, usually we close the modal (handled by onSuccess)
         if (!existingProduct) {
           setFormData(defaultProductInfo);
           setVariants([getFreshVariant()]);
