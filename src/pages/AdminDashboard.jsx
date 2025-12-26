@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import { getProducts } from "../services/admin";
-
 import Sidebar from "../components/admin/Sidebar";
 import ProductList from "../components/admin/ProductList";
 import ProductForm from "../components/admin/ProductForm";
@@ -12,7 +11,6 @@ const AdminDashboard = () => {
   const [products, setProducts] = useState([]);
   const [editingProduct, setEditingProduct] = useState(null);
 
-  // Fetch products when tab changes to "products"
   useEffect(() => {
     if (activeTab === "products") {
       fetchData();
@@ -32,7 +30,6 @@ const AdminDashboard = () => {
   };
 
   const handleFormSuccess = () => {
-    // Refresh data and go back to list
     fetchData();
     setEditingProduct(null);
     setActiveTab("products");

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Search, Edit2, Trash2 } from "lucide-react";
 import { deleteProductAPI } from "../../services/admin";
 
@@ -48,12 +48,8 @@ const ProductList = ({ products, setProducts, onEdit }) => {
         ) : (
           <div className="space-y-4">
             {filteredProducts.map((p, i) => {
-              // --- FIX: Access the first variant for preview info ---
-              // Since price/color are now inside 'variants', we pluck the first one.
               const firstVariant = p.variants?.[0] || {};
               const price = firstVariant.price || {};
-              // -----------------------------------------------------
-
               return (
                 <div
                   key={p._id || i}
@@ -79,7 +75,6 @@ const ProductList = ({ products, setProducts, onEdit }) => {
                         {p.mainCategory} / {p.subCategory}
                       </p>
 
-                      {/* Show Color of the first variant */}
                       <p className="text-xs text-gray-500">
                         Color: {firstVariant.color || "N/A"}
                         {p.variants?.length > 1 && (
@@ -89,7 +84,6 @@ const ProductList = ({ products, setProducts, onEdit }) => {
                         )}
                       </p>
 
-                      {/* Show Price of the first variant */}
                       <p className="text-sm mt-1">
                         ₹{price.discounted || price.original || 0}
                       </p>
